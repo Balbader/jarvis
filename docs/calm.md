@@ -1,7 +1,7 @@
 # Calm mode
 
 Calm is Firstmate's conversation-only transcript presentation toggle.
-This page is for operators who turn Calm on and need to know what it hides and keeps visible on Pi and on Claude Code, and which file owns each part of that behavior.
+This page is for operators who turn Calm on and need to know what it hides and keeps visible on Pi, Claude Code, and OpenCode, and which file owns each part of that behavior.
 
 ## Harness support and default
 
@@ -9,14 +9,15 @@ This page is for operators who turn Calm on and need to know what it hides and k
 | --- | --- |
 | Pi | Fully supported. |
 | Claude Code | Available behind that harness's default-off early-access function-hooks flag, as the [Claude Code](#claude-code) section below describes. |
+| OpenCode | A partial port through OpenCode's own quiet settings, as the [OpenCode](#opencode) section below describes. |
 
 Calm is off by default.
-The last `/calm` choice persists for the effective Firstmate home across session starts and resumes on either harness.
-Both harnesses keep that choice in the one shared preference file that [`configuration.md`](configuration.md#calm-preference-configcalm) owns.
+The last `/calm` or `/ocalm` choice persists for the effective Firstmate home across session starts and resumes on every harness.
+Every harness keeps that choice in the one shared preference file that [`configuration.md`](configuration.md#calm-preference-configcalm) owns.
 
 ## Shared preservation rule for assistant text
 
-Across both harnesses, Calm evaluates each settled assistant text block from a model step that stopped to call tools, or that exhausted its token limit while carrying tool calls.
+On Pi and Claude Code, Calm evaluates each settled assistant text block from a model step that stopped to call tools, or that exhausted its token limit while carrying tool calls.
 Calm hides such a block only in the first case below:
 
 | Settled block | Result |
@@ -160,7 +161,7 @@ How Calm handles that shared slot depends on whether Calm was already on when th
 - `.claude/mods/firstmate-calm/lib/fm-calm-preservation.ts` owns the shared substantive mid-turn text rule, which Pi imports through its tracked symlink.
 - `.pi/extensions/lib/fm-calm-operational-user-layout.ts` owns the zero-height operational-user row adapter.
 - `.pi/extensions/lib/fm-calm-pending-operational-layout.ts` owns the queued-row adapter and its session capability check.
-- `.pi/extensions/lib/fm-calm-working-ship.ts` owns Pi's animated working presentation over the sprite geometry both harnesses share in `.claude/mods/firstmate-calm/lib/fm-calm-working-ship-sprite.ts`.
+- `.pi/extensions/lib/fm-calm-working-ship.ts` owns Pi's animated working presentation over the sprite geometry every harness shares in `.claude/mods/firstmate-calm/lib/fm-calm-working-ship-sprite.ts`.
 
 ### Pi regression entry points
 
@@ -198,7 +199,7 @@ Without that exact value, the mod is a complete no-op, even if Claude Code's rol
 ### Toggling Calm on Claude Code
 
 With the flag on, the mod registers `/calm`.
-It toggles the same per-home preference Pi's `/calm` uses, so one choice applies on both harnesses.
+It toggles the same per-home preference Pi's `/calm` uses, so one choice applies on every harness.
 The toggle answers with a transient "Calm on" or "Calm off" notice under the prompt rather than a transcript row.
 A preference that cannot be written leaves the current choice unchanged, and the notice says so.
 The mod reads the preference before the first row draws.
@@ -307,4 +308,87 @@ Evidence for 2.1.280 and the record-backed doorbell is also in its [2026-09-25 r
 tests/fm-calm-claude-mod.test.sh
 tests/fm-calm-claude-mod-plugin.test.sh
 FM_CLAUDE_CALM_LIVE_E2E=1 tests/fm-calm-claude-mod-live-e2e.test.sh
+```
+
+## OpenCode
+
+### The OpenCode port
+
+Calm on OpenCode is the local plugin under `.opencode/plugins/fm-ocalm` plus the `/ocalm` skill under `.opencode/skills/ocalm`.
+OpenCode loads the plugin's TUI part from the trusted project, so no install step is needed.
+The port is verified on OpenCode 2.2.7 and refuses nothing newer.
+Its plugin surface cannot hide or redraw individual transcript rows, so the port leans on OpenCode's own quiet transcript settings instead and is a partial port of the Pi and Claude Code behavior above.
+
+### Toggling Calm on OpenCode
+
+In the OpenCode TUI, the `/ocalm` slash command and the "Toggle Calm" command-palette entry toggle Calm.
+The toggle answers with a transient "Calm on" or "Calm off" notice rather than a transcript row.
+It flips the same per-home preference Pi's and Claude Code's `/calm` use, so one choice applies on every harness.
+The choice is saved before anything else changes, and a preference that cannot be written leaves the current choice and OpenCode's settings unchanged, and the notice says so.
+The plugin applies the saved choice when the TUI starts.
+
+Outside the TUI, including from a headless `opencode run`, the `/ocalm` skill runs `node .opencode/plugins/fm-ocalm/ocalm.js toggle` to flip the same preference and settings.
+Bun runs the same file.
+
+### What Calm changes on OpenCode
+
+While Calm is on, the port sets three keys under `session` in OpenCode's global CLI settings file, `$XDG_CONFIG_HOME/opencode/cli.json` or `~/.config/opencode/cli.json`:
+
+- `thinking` set to `hide` hides reasoning.
+- `verbosity` set to `low` collapses each run of tool calls and thoughts into one summary row such as `+ 1 command, 1 thought`.
+- `grouping` set to `auto` groups related items.
+
+Open TUI sessions apply the change at once, including rows already on screen.
+Before the first change, the port records the prior values in `fm-ocalm-restore.json` beside the settings file.
+Turning Calm off puts back exactly those values, removes keys that were absent before, removes the settings file again if Calm created it, and deletes the record.
+The port leaves every other setting alone, including OpenCode's `mini` group, whose `tools: hide` would also hide the assistant text before each tool call.
+
+While Calm is on and a run is active in the open session, the footer progress indicator becomes the same two-row sailboat Pi draws, from the same shared sprite geometry.
+The water takes the theme's blue and the whole boat its yellow, falling back to the nearest hue the theme publishes, in a lighter shade on dark themes.
+The stock footer returns as soon as the run ends, and while Calm is off the footer stays exactly as OpenCode draws it.
+
+### What stays visible on OpenCode
+
+The OpenCode plugin surface offers named slots but no per-row transcript drawing, so these Pi and Claude Code behaviors have no OpenCode equivalent:
+
+- No row draws at zero height: the `+ N thought` and tool summary rows stay visible, and short mid-turn working notes stay visible instead of following the [shared preservation rule](#shared-preservation-rule-for-assistant-text).
+- Firstmate operational user rows stay visible.
+- Calm cannot redraw a row on its own; only OpenCode's own settings redraw the transcript.
+- The transcript's own working row stays stock; only the footer progress indicator becomes the sailboat.
+- A headless `opencode run` has no TUI, so it shows neither the quiet transcript nor the sailboat, although its reasoning is already hidden by default.
+
+### What stays unchanged on OpenCode
+
+Nothing is rewritten.
+The port never reads or writes stored sessions, transcripts, exports, or model context, and never touches tool execution or prompts.
+It writes only the preference, OpenCode's CLI settings file, and the restore record.
+
+### OpenCode settings across homes
+
+OpenCode's CLI settings file belongs to the OS user, while the preference belongs to each Firstmate home.
+Every OpenCode TUI session for that user therefore turns quiet while any home holds Calm on, including sessions outside Firstmate.
+The restore record lists every home holding the quiet settings, and only the last one to turn Calm off restores the prior values.
+A settings file that is not a JSON object is never overwritten: the choice still saves, and the notice reports that OpenCode's settings were left unchanged.
+
+### Verifying OpenCode by hand
+
+1. Start OpenCode from the Firstmate repository root with `FM_HOME` pointing at the home to test.
+2. Note the current contents of the CLI settings file.
+3. Type `/ocalm` and press Enter; a "Calm on" notice appears, `config/calm` reads `on`, and the settings file holds the three quiet keys.
+4. Submit a prompt that runs a tool; the footer shows the sailboat while it runs, and the transcript shows a summary row in place of the tool and reasoning rows.
+5. Open the command palette with `ctrl+p` and choose "Toggle Calm"; a "Calm off" notice appears, the rows expand again, and the settings file matches step 2.
+
+### Owning docs and files
+
+- [`calm-mode-feasibility.md`](calm-mode-feasibility.md#2026-11-13-opencode-227-calm-port) owns the OpenCode 2.2.7 evidence.
+- [`configuration.md`](configuration.md#calm-preference-configcalm) owns the persisted preference file and resolution rules.
+- `.opencode/plugins/fm-ocalm/ocalm.js` owns the toggle, the CLI settings change and restore, and the skill's command line.
+- `.opencode/plugins/fm-ocalm/tui.js` owns the slash command, palette entry, notice, and sailboat slot.
+- `.opencode/skills/ocalm/SKILL.md` owns the headless toggle instructions.
+- `.opencode/plugins/lib/fm-calm-presentation.ts` and `.opencode/plugins/lib/fm-calm-working-ship-sprite.ts` are tracked symlinks to the shared preference and sprite owners in `.claude/mods/firstmate-calm/lib/`.
+
+### OpenCode regression entry points
+
+```sh
+tests/fm-ocalm-opencode.test.sh
 ```

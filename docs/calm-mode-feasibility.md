@@ -269,7 +269,7 @@ grok 0.2.106 (bde89716f679)
 | --- | --- | --- |
 | Claude Code 2.1.272 (superseding the 2.1.218 row, which found no transcript-row renderer in project hooks or the plugin CLI) | Feasible through the early-access Claude Code mods surface (function hooks), default-off behind `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS`, and initially shipped with the plugin name `firstmate-calm` (now `fm`; see [`calm.md`](calm.md#the-calm-mod)). | A `ui.render` hook draws per-component transcript rows and the working row, `$.ui.invalidate` redraws the transcript, and `$.ui.blit` animates a `Raster`; the [2026-09-15 record](#2026-09-15-claude-code-21272-mods-feasibility-and-the-shipped-mod) owns the spike-verified working animation, gapless hiding and retroactive redraw of tool, narration, and operational rows, the persisted per-home toggle, and the three bounded gaps: an early-access API that may change, main-screen scrollback keeping pre-toggle copies, and 256-color Raster paint. |
 | Codex CLI 0.144.6 | Not feasible through the inspected supported project surface. | The tracked hooks expose session, pre-tool, and stop handling, while the plugin and feature inventories expose no TUI tool-row renderer or transcript redraw control. |
-| OpenCode 1.17.18 | Not feasible without violating the preservation boundary. | Plugins expose events and tool execution hooks, not a built-in transcript-row renderer; same-name tool replacement changes execution rather than presentation alone. |
+| OpenCode 2.2.7 (superseding the 1.17.18 row, which found only events and tool execution hooks) | Partially feasible through OpenCode's own quiet CLI settings and a named TUI slot. | TUI plugins register slash and palette commands, show notices, and replace named slots such as the footer progress indicator, and the global CLI settings hide reasoning and summarize tool runs live and retroactively; the [2026-11-13 record](#2026-11-13-opencode-227-calm-port) owns the evidence and the gaps: no per-row zero-height hiding, no Calm-driven retroactive redraw, and no replacement of the transcript's stock working row. |
 | Pi (verified 0.81.1 through 0.82.0) | Partially feasible with two API-probed exported-class adapters. | Public APIs control working visibility, collapsed labels, known tool slots, custom entries, and expansion redraws; exported assistant and interactive-mode classes provide the collapsed-thinking and operational-user layout boundaries, gated on the exact method's presence rather than a version number, while generic user, tool, and status filtering remains unavailable. |
 | Grok CLI 0.2.106 | Not feasible through the inspected supported project surface. | Project hooks expose lifecycle and tool interception, while the plugin CLI exposes no row-renderer contract; `--minimal` changes the whole screen mode rather than selected transcript rows. |
 
@@ -313,6 +313,7 @@ Queued-row coverage drives Pi's real listing and restore methods over a stand-in
 [`tests/fm-pi-primary-types.test.sh`](../tests/fm-pi-primary-types.test.sh) owns the strict production-consumer typecheck and its dependency contract.
 `tests/fm-calm-claude-mod.test.sh` needs no Claude Code binary: it proves the mod is one hooks module with no command, skill, agent, or classic hook path around its opt-in, that Pi's working ship renders byte-for-byte the shared sprite core painted in ANSI at every width and step, that the Raster packing lays that frame out exactly, that the mod resolves its home like Pi, that its live and restored working-note classifiers enforce the visibility boundaries [`calm.md`](calm.md#claude-code) owns, and that its operational-input classifier agrees with `bin/fm-operational-input.sh` on a corpus the shell owner itself encodes plus legacy shapes and near misses.
 `tests/fm-calm-claude-mod-plugin.test.sh` runs wherever `claude` is installed without spending a model turn: strict `claude plugin validate` on the folder and on the `.claude/skills` auto-load path, then the mod's own `claude plugin test` suites, which drive the hooks module in the engine's host against a mocked clock, environment, file system, and drawing surface.
+`tests/fm-ocalm-opencode.test.sh` needs no OpenCode binary: it drives the OpenCode port's toggle in both directions, the exact apply-and-restore of OpenCode's CLI settings across homes, the drawn sailboat against the shared sprite core, the TUI plugin's wiring through a stand-in context under Bun when Bun is installed, and a file snapshot proving a full cycle touches no session, transcript, export, or context data.
 `tests/fm-calm-claude-mod-live-e2e.test.sh` is the opt-in credentialed guard in a real Claude Code TUI under tmux: flag off is a complete no-op with the preference already on, flag on shows the moving boat, hides tool and operational rows, toggles and persists through `/calm`, and `claude --continue` restores the hidden rows.
 
 The relevant commands are:
@@ -326,6 +327,7 @@ tests/fm-calm-pi-queue-retention-live-e2e.test.sh
 tests/fm-calm-claude-mod.test.sh
 tests/fm-calm-claude-mod-plugin.test.sh
 FM_CLAUDE_CALM_LIVE_E2E=1 tests/fm-calm-claude-mod-live-e2e.test.sh
+tests/fm-ocalm-opencode.test.sh
 ```
 
 ## 2026-07-23 verification record
@@ -891,3 +893,59 @@ ok - Claude Code 2.1.284 (Claude Code) with the flag on: the mod auto-loads from
 ok - Claude Code 2.1.284 (Claude Code) resumes the transcript with Calm's hidden rows still hidden and the preference intact
 ok - Claude Code 2.1.284 (Claude Code) with Calm off shows the supervision notes: the session-start anchor for an unprocessed captain outcome, a sailboat for a new routine outcome, an anchor for a new captain outcome, and the latch-trip note, each behind the fm: label, skipping processed and silent outcomes, moving no store marker, never reaching the model, and on resume showing each anchor once
 ```
+
+## 2026-11-13 OpenCode 2.2.7 Calm port
+
+This record supersedes the OpenCode 1.17.18 conclusion in the [cross-harness verification record](#cross-harness-verification-record).
+OpenCode 2.2.7 adds a TUI plugin surface, so a partial Calm port is now feasible; [`calm.md`](calm.md#opencode) owns its user-facing contract.
+
+### What the API allows
+
+The `@opencode/plugin` 2.2.7 TUI types and a live OpenCode 2.2.7 TUI under tmux, driven by a deterministic fake provider, showed this surface:
+
+- A local plugin directory under `.opencode/plugins/` loads its `tui` entry from the trusted project, and the host supplies `@opentui/solid` and `solid-js` at run time; a plain `.js` entry gets no Solid JSX transform.
+- Keymap layers register commands with a slash name and a palette entry; a default base-mode layer reaches slash completion but not the `ctrl+p` palette, and `mode: "global"` reaches both.
+- `ui.toast.show` shows a transient notice, and `data.session.status` reports `idle` or `running` per session.
+- `ui.slot` claims one of ten named slots (`app`, `home.footer`, `home.footer.status`, `prompt.footer`, `prompt.footer.status`, `prompt.footer.file`, `session.composer.top`, `session.panel`, `sidebar.content`, `sidebar.footer`) by prepend, append, before, after, or replace.
+- No slot or hook draws an individual transcript row, so no row can draw at zero height and a plugin cannot redraw rows on its own.
+- A span takes color only from a theme RGBA value through `style`; a hex string `fg` is ignored, and themes publish different hue scales (the default theme has orange and no yellow, carbonfox the reverse).
+
+The global CLI settings schema at `https://opencode.ai/v2/cli.json` offers `session.thinking` (`show` or `hide`), `session.verbosity` (`low`, `medium`, or `high`), and `session.grouping` (`auto` or `none`).
+A `mini` group also offers `tools: hide`, which hides each tool call together with the assistant text before it, so it would break the preservation rule and the port leaves `mini` alone.
+
+### Spike-verified behavior
+
+- `prompt.footer.status` holds the working directory while idle and the stock `⬝⬝⬝⬝■ esc interrupt` indicator while a run is active; replacing it only while the session root reports `running` shows the sailboat during the run and the stock footer after it.
+- Writing the three quiet keys to `cli.json` redrew open sessions live, including rows already on screen: tool and reasoning rows collapsed to rows such as `+ 1 command, 1 thought`, while a short working note such as `Short working note 0.` stayed visible.
+- Writing the prior values back restored the expanded transcript live, and the restored file matched the original `theme` and `session` (`thinking: show`, `sidebar: auto`) exactly.
+- Starting the TUI with `config/calm` already `on` applied the quiet keys at plugin setup.
+- Typing `/ocalm` and choosing "Toggle Calm" in the palette each toggled the shared preference between `on` and `off` with a "Calm on" or "Calm off" notice.
+- The `.opencode/skills/ocalm` skill appeared in the `/skills` dialog without adding a second `/ocalm` slash entry.
+- Under carbonfox the boat painted in 256-color 214 and the water in 75.
+- `opencode run` hides reasoning by default and loads no TUI plugin.
+
+The live lab ran `opencode --standalone`, because a managed OpenCode service already held the default port.
+
+```text
+$ opencode --version
+opencode v2.2.7
+
+$ bash tests/fm-ocalm-opencode.test.sh
+1..6
+ok - the toggle writes and reads the shared config/calm preference in both directions, with legacy max as on and the documented resolution order
+ok - a failed preference write changes nothing, and an unreadable settings file is reported and left alone
+ok - OpenCode's quiet CLI settings apply while Calm is on and restore exactly, including absent keys and files, once the last home turns it off
+ok - the drawn boat is the shared sprite core's own text and colors, frame by frame across widths and ticks
+ok - the TUI plugin registers /ocalm in slash and palette, toggles with a notice, starts quiet when already on, and draws the shared boat only while Calm is on and a run is active
+ok - a full Calm cycle changes only the preference, OpenCode's CLI settings, and the restore record, never session data, transcripts, exports, or model context
+```
+
+### Parity and bounded gaps
+
+The port meets the required extension surface for auto-loading, the persisted per-home toggle, a stock-when-off working presentation, no Calm status row, restoring ordinary rendering, and leaving delivery, execution, model context, session storage, and exports unchanged.
+These gaps remain, because OpenCode 2.2.7 exposes no transcript-row drawing:
+
+- No per-row zero-height hiding: summary rows, short working notes, and Firstmate operational user rows stay visible.
+- No retroactive redraw driven by Calm itself; only OpenCode's own settings change redraws the transcript.
+- No replacement of the transcript's stock working row; the sailboat replaces only the footer progress indicator.
+- The CLI settings file belongs to the OS user, so the quiet settings reach every OpenCode TUI session for that user while any home holds Calm on.
